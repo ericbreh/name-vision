@@ -2,15 +2,12 @@ import cv2
 from deepface import DeepFace
 import os
 from datetime import datetime
-import time
 import numpy as np
+import msvcrt
 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-SIMILARITY_THRESHOLD = 0.8  # Higher = more similar
-MIN_IMAGES_PER_PERSON = 1  # Minimum images to keep per person
-MAX_IMAGES_PER_PERSON = 5  # Maximum images to keep per person
+SIMILARITY_THRESHOLD = 0.5
+MIN_IMAGES_PER_PERSON = 1
+MAX_IMAGES_PER_PERSON = 5
 
 face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -51,7 +48,6 @@ def get_uniqueness_score(target_img, other_images):
 
 
 def update_person_images(new_image, person_folder):
-    """Maintain collection of most unique images"""
     images = []
     scores = []
 
@@ -108,12 +104,20 @@ def find_match(face_img):
         for person_dir in os.listdir(known_faces_dir):
             person_path = os.path.join(known_faces_dir, person_dir)
             if os.path.isdir(person_path) and os.listdir(person_path):
-                reference_img = os.path.join(
-                    person_path, os.listdir(person_path)[0])
-                result = DeepFace.verify(
-                    face_img, reference_img, enforce_detection=False)
-                if result['verified']:
-                    return person_dir
+                # Try each image in person's folder
+                for img_name in os.listdir(person_path):
+                    reference_img = os.path.join(person_path, img_name)
+                    result = DeepFace.verify(
+                        face_img,
+                        reference_img,
+                        enforce_detection=False,
+                        distance_metric="cosine",
+                        model_name="VGG-Face",
+                        detector_backend="opencv",
+                        threshold=SIMILARITY_THRESHOLD
+                    )
+                    if result['verified']:
+                        return person_dir
     except:
         return None
     return None
@@ -133,14 +137,49 @@ def process_frame(frame):
             identity = f"person_{new_id}"
 
         save_face(face_img, identity)
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        cv2.putText(frame, identity, (x, y-10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+        # cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        # cv2.putText(frame, identity, (x, y-10),
+        #             cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
 
     return frame
 
 
+# def analyze_video(video_path):
+#     # Open video file instead of webcam
+#     video_capture = cv2.VideoCapture(video_path)
+#     video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+#     video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+#     total_frames = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+
+#     frame_count = 0
+#     while True:
+#         ret, frame = video_capture.read()
+#         if not ret:
+#             break
+
+#         frame_count += 1
+#         if frame_count % 5 == 0:
+#             print(
+#                 f"Processing frame {frame_count}/{total_frames} ({frame_count/total_frames*100:.1f}%)")
+#             frame = process_frame(frame)
+
+#     video_capture.release()
+#     print("Video processing complete")
+
+
+# # Usage:
+# video_path = "face-demographics-walking-and-pause.mp4"
+# analyze_video(video_path)
+
+# Capture video from webcam
 video_capture = cv2.VideoCapture(0)
+video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+video_capture.set(cv2.CAP_PROP_FPS, 30)
+video_capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+video_capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+
 
 while True:
     ret, frame = video_capture.read()
@@ -150,8 +189,9 @@ while True:
     frame = process_frame(frame)
     cv2.imshow('Face Recognition', frame)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    if msvcrt.kbhit():
+        if msvcrt.getch() == b'q':
+            break
 
 video_capture.release()
 cv2.destroyAllWindows()
