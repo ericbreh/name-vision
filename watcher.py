@@ -163,25 +163,25 @@ def analyze_video(video_path):
     video_capture.release()
 
 
-# Use video file
-video_path = "face-demographics-walking-and-pause.mp4"
-analyze_video(video_path)
+# # Use video file
+# video_path = "face-demographics-walking-and-pause.mp4"
+# analyze_video(video_path)
 
-# # Capture video from webcam
-# video_capture = cv2.VideoCapture(0)
-# video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-# video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+# Capture video from webcam
+video_capture = cv2.VideoCapture(0)
+video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-# while True:
-#     ret, frame = video_capture.read()
-#     if not ret:
-#         break
+while True:
+    ret, frame = video_capture.read()
+    if not ret:
+        break
 
-#     process_frame(frame)
-#     # cv2.imshow('Face Recognition', frame)
+    process_frame(frame)
+    # cv2.imshow('Face Recognition', frame)
 
-#     if cv2.waitKey(1) & 0xFF == ord("q"):
-#         break
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
 
-# video_capture.release()
-# cv2.destroyAllWindows()
+video_capture.release()
+cv2.destroyAllWindows()
