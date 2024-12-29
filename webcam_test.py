@@ -6,7 +6,7 @@ face_cascade = cv2.CascadeClassifier(
 
 def process_frame(frame):
     gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray_image, 1.3, 5, minSize=(30, 30))
+    faces = face_cascade.detectMultiScale(gray_image, 1.3, 5)
 
     for (x, y, w, h) in faces:
         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
