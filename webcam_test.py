@@ -1,15 +1,22 @@
+from deepface import DeepFace
 import cv2
-
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 
 def process_frame(frame):
-    gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray_image, 1.3, 5)
+    try:
+        face_results = DeepFace.extract_faces(frame, enforce_detection=False)
 
-    for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        # Draw rectangles around detected faces
+        for face_data in face_results:
+            face_coords = face_data['facial_area']
+            x = face_coords['x']
+            y = face_coords['y']
+            w = face_coords['w']
+            h = face_coords['h']
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
+    except Exception as e:
+        print(f"Error processing frame: {str(e)}")
 
 
 video_capture = cv2.VideoCapture(0)
