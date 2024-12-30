@@ -3,14 +3,13 @@ import os
 from deepface import DeepFace
 import time
 from datetime import datetime
-
-# facenet model?
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 class FaceWatcher:
     def __init__(self, faces_directory):
         self.faces_directory = faces_directory
-        self.detected_people = []
         self.embeddings = {}
         self.load_face_database()
 
@@ -37,8 +36,10 @@ class FaceWatcher:
                 embedding = DeepFace.represent(image_path,
                                                model_name="VGG-Face",
                                                enforce_detection=False)
-                if embedding:
-                    self.embeddings[person_name] = embedding[0]
+                if embedding and len(embedding) > 0:
+                    # Extract the embedding vector from the dictionary
+                    embedding_vector = embedding[0]['embedding']
+                    self.embeddings[person_name] = embedding_vector
                     print(f"Loaded reference image for {person_name}")
             except Exception as e:
                 print(f"Error processing {person_name}'s image: {str(e)}")
@@ -48,23 +49,43 @@ class FaceWatcher:
         min_distance = float('inf')
         matched_name = None
 
-        for name, ref_embedding in self.embeddings.items():
-            # Calculate similarity between embeddings
-            distance = DeepFace.verify(face_embedding, ref_embedding,
-                                       model_name="VGG-Face",
-                                       distance_metric="cosine",
-                                       enforce_detection=False)['distance']
+        try:
+            # Extract embedding vector from dictionary if needed
+            if isinstance(face_embedding, dict) and 'embedding' in face_embedding:
+                face_embedding = face_embedding['embedding']
+            face_embedding = np.array(face_embedding).reshape(1, -1)
 
-            print(f"Distance from {name}: {distance}")
+            for name, ref_embedding in self.embeddings.items():
+                try:
+                    # Extract embedding vector from dictionary if needed
+                    if isinstance(ref_embedding, dict) and 'embedding' in ref_embedding:
+                        ref_embedding = ref_embedding['embedding']
+                    ref_embedding = np.array(ref_embedding).reshape(1, -1)
 
-            if distance < min_distance:
-                min_distance = distance
-                matched_name = name
+                    # Calculate cosine similarity
+                    similarity = cosine_similarity(
+                        face_embedding, ref_embedding)[0][0]
+                    # Convert to distance (1 - similarity)
+                    distance = 1 - similarity
 
-        # Use a threshold to determine if it's a match
-        if min_distance < 0.5:
-            return matched_name
-        return None
+                    # print(f"Distance from {name}: {distance}")
+
+                    if distance < min_distance:
+                        min_distance = distance
+                        matched_name = name
+
+                except Exception as e:
+                    print(f"Error comparing with {name}: {str(e)}")
+                    continue
+
+            # Use a threshold to determine if it's a match
+            if min_distance < 0.5:
+                return matched_name
+            return None
+
+        except Exception as e:
+            print(f"Error in find_match: {str(e)}")
+            return None
 
     def process_video(self, video_source=0):
         """Process video stream and detect faces"""
@@ -97,6 +118,7 @@ class FaceWatcher:
                         print("Invalid face data detected, skipping...")
                         continue
 
+                    # Box around face
                     face_coords = face_data['facial_area']
                     x = face_coords['x']
                     y = face_coords['y']
@@ -111,8 +133,15 @@ class FaceWatcher:
                         continue
 
                     try:
+                        # Convert face image to uint8 if it's not already
+                        if face.dtype != np.uint8:
+                            face = (face * 255).astype(np.uint8)
+
                         # Ensure face image is in correct format
-                        face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+                        if len(face.shape) == 3:  # If image is already in color
+                            face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+                        else:  # If image is grayscale
+                            face = cv2.cvtColor(face, cv2.COLOR_GRAY2RGB)
 
                         # Get embedding for detected face
                         embedding = DeepFace.represent(face,
@@ -123,11 +152,8 @@ class FaceWatcher:
                         if embedding and len(embedding) > 0:
                             # Find match in database
                             name = self.find_match(embedding[0])
-                            if name and name not in self.detected_people:
-                                self.detected_people.append(name)
-                                print(f"\nDetected new person: {name}")
-                                print(
-                                    f"Detected people: {', '.join(self.detected_people)}")
+                            if name:
+                                print(f"Match found: {name}")
                             else:
                                 print("No match found in database")
                     except ValueError as ve:
