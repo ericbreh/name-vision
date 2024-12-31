@@ -69,8 +69,8 @@ class FaceWatcher:
                 min_distance = distance
                 matched_name = name
 
-        # Use a threshold to determine if it's a match
-        if min_distance < 0.6:
+        # Determine if it's a match
+        if min_distance < 0.6:  # Distance threshold
             return matched_name
         return None
 
@@ -91,7 +91,7 @@ class FaceWatcher:
 
             # Don't process all frames
             frame_count += 1
-            if frame_count % 10 != 0:
+            if frame_count % 20 != 0:
                 continue
 
             # Detect and extract faces
@@ -99,48 +99,48 @@ class FaceWatcher:
                                                   enforce_detection=False)
 
             for face_data in face_results:
-                # Validate face data
-                if 'facial_area' not in face_data or 'face' not in face_data:
-                    print("Invalid face data detected, skipping...")
-                    continue
+                if face_data.get('confidence', 0) > 0.8:  # Confidence threshold
+                    face = face_data['face']
+                    # Validate face image
+                    if face is None or face.size == 0:
+                        print("Invalid face image, skipping...")
+                        continue
 
-                # Box around face
-                face_coords = face_data['facial_area']
-                x = face_coords['x']
-                y = face_coords['y']
-                w = face_coords['w']
-                h = face_coords['h']
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    # Convert face image to uint8 if it's not already
+                    if face.dtype != np.uint8:
+                        face = (face * 255).astype(np.uint8)
 
-                face = face_data['face']
-                # Validate face image
-                if face is None or face.size == 0:
-                    print("Invalid face image, skipping...")
-                    continue
+                    # Ensure face image is in correct format
+                    if len(face.shape) == 3:  # If image is already in color
+                        face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+                    else:  # If image is grayscale
+                        face = cv2.cvtColor(face, cv2.COLOR_GRAY2RGB)
 
-                # Convert face image to uint8 if it's not already
-                if face.dtype != np.uint8:
-                    face = (face * 255).astype(np.uint8)
+                    # Get embedding for detected face
+                    embedding = DeepFace.represent(face,
+                                                   model_name="VGG-Face",
+                                                   enforce_detection=False,
+                                                   align=True)
 
-                # Ensure face image is in correct format
-                if len(face.shape) == 3:  # If image is already in color
-                    face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
-                else:  # If image is grayscale
-                    face = cv2.cvtColor(face, cv2.COLOR_GRAY2RGB)
+                    if embedding and len(embedding) > 0:
+                        # Find match in database
+                        name = self.find_match(embedding[0])
+                        if name:
+                            print(f"Match found: {name}")
+                        else:
+                            print("No match found in database")
 
-                # Get embedding for detected face
-                embedding = DeepFace.represent(face,
-                                               model_name="VGG-Face",
-                                               enforce_detection=False,
-                                               align=True)
-
-                if embedding and len(embedding) > 0:
-                    # Find match in database
-                    name = self.find_match(embedding[0])
+                    # Box around face
+                    face_coords = face_data['facial_area']
+                    x = face_coords['x']
+                    y = face_coords['y']
+                    w = face_coords['w']
+                    h = face_coords['h']
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    # Display the name if a match is found
                     if name:
-                        print(f"Match found: {name}")
-                    else:
-                        print("No match found in database")
+                        cv2.putText(frame, name, (x, y - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 2)
 
             # Display the frame
             cv2.imshow('Video', frame)
