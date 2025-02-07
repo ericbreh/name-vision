@@ -70,7 +70,7 @@ class FaceWatcher:
                 matched_name = name
 
         # Determine if it's a match
-        if min_distance < 0.6:  # Distance threshold
+        if min_distance < 0.7:  # Distance threshold
             return matched_name
         return None
 
